@@ -1,31 +1,36 @@
-use clap::{crate_version, App, Arg};
+use clap::Parser;
 use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::path::Path;
 
+#[derive(Parser, Debug)]
+#[clap(author, version, about, long_about = None)]
+#[clap(propagate_version = true)]
+struct App {
+    /// Words to search for
+    words: Vec<String>,
+    /// Output in format suitable for vimgrep
+    #[clap(short, long)]
+    vimgrep: bool,
+}
+
 fn main() {
-    let matches = App::new("NoteFind")
-        .about("Search note titles, contents, and tags")
-        .version(crate_version!())
-        .arg(Arg::with_name("word").multiple(true).required(true))
-        .get_matches();
+    let app = App::parse();
 
-    let words: Vec<String> = matches
-        .values_of("word")
-        .unwrap()
-        .map(|x| x.to_owned())
-        .collect();
+    let filter = NoteFilter::new(&app.words);
 
-    let filter = NoteFilter::new(&words);
-
-    let files = tagsearch::utility::get_files(None).unwrap();
+    let files = tagsearch::utility::get_files(None).unwrap_or_default();
     for filename in files {
         let p = Path::new(&filename);
         let nfmatch = filter.matches(p);
         if nfmatch == NFMatch::NoMatch {
             continue;
         }
-        println!("{} {:60}", nfmatch, p.to_string_lossy(),);
+        if app.vimgrep {
+            println!("{}:1:{}", p.to_string_lossy(), nfmatch.oxford_commaize());
+        } else {
+            println!("{} {:60}", nfmatch, p.to_string_lossy());
+        }
     }
 }
 
@@ -58,6 +63,21 @@ impl std::fmt::Display for NFMatch {
             NFMatch::TitleContents => write!(f, "T c"),
             NFMatch::TagsContents => write!(f, " tc"),
             NFMatch::TitleTagsContents => write!(f, "Ttc"),
+        }
+    }
+}
+
+impl NFMatch {
+    fn oxford_commaize(&self) -> &str {
+        match self {
+            NFMatch::NoMatch => "",
+            NFMatch::OnlyTitle => "Title only",
+            NFMatch::OnlyTags => "Tags only",
+            NFMatch::OnlyContents => "Contents only",
+            NFMatch::TitleTags => "Title and tags",
+            NFMatch::TitleContents => "Title and contents",
+            NFMatch::TagsContents => "Tags and contents",
+            NFMatch::TitleTagsContents => "Title, tags, and contents",
         }
     }
 }
