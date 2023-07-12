@@ -1,7 +1,6 @@
 use clap::Parser;
 use std::path::Path;
 
-mod nfmatch;
 mod notefilter;
 
 use notefilter::NoteFilter;
@@ -23,19 +22,16 @@ struct App {
 fn main() {
     let app = App::parse();
 
-    let filter = NoteFilter::new(&app.words, app.sensitive);
+    let filter = NoteFilter::new(&app.words, app.sensitive, app.vimgrep);
 
-    let files = tagsearch::utility::get_files(None).unwrap_or_default();
+    let files = tagsearch::utility::get_files(None)
+        .unwrap_or_default();
+
     for filename in files {
-        let p = Path::new(&filename);
-        let nfmatch = filter.matches(p);
-        if nfmatch.no_match() {
-            continue;
-        }
-        if app.vimgrep {
-            println!("{}:1:1:{}", p.to_string_lossy(), nfmatch.oxford_commaize());
-        } else {
-            println!("{} {:60}", nfmatch, p.to_string_lossy());
+        let path = Path::new(&filename);
+        let fm = filter.matches(path);
+        if !fm.matches.is_empty() {
+            println!("{}", fm);
         }
     }
 }
